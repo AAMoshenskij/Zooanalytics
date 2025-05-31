@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    container_name: abd2_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: abd2_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d
+      - ./исходные_данные:/docker-entrypoint-initdb.d/исходные_данные
+
+  spark:
+    image: bitnami/spark:3.5.1
+    container_name: abd2_spark
+    environment:
+      - SPARK_MODE=master
+      - SPARK_LOCAL_IP=spark
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    volumes:
+      - ./postgresql-42.5.0.jar:/opt/bitnami/spark/jars/postgresql-42.5.0.jar
+      - ./clickhouse-jdbc-0.4.6.jar:/opt/bitnami/spark/jars/clickhouse-jdbc-0.4.6.jar
+      - ./spark_scripts:/app
+    ports:
+      - "8080:8080"
+      - "4040:4040"
+
+  spark-worker:
+    image: bitnami/spark:3.5.1
+    container_name: abd2_spark_worker
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark:7077
+      - SPARK_WORKER_MEMORY=4G
+      - SPARK_WORKER_CORES=2
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    depends_on:
+      - spark
+    volumes:
+      - ./postgresql-42.5.0.jar:/opt/bitnami/spark/jars/postgresql-42.5.0.jar
+      - ./clickhouse-jdbc-0.4.6.jar:/opt/bitnami/spark/jars/clickhouse-jdbc-0.4.6.jar
+      - ./spark_scripts:/app
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse_server
+    environment:
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=your_secure_password
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - ./clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse_config.xml:/etc/clickhouse-server/config.d/logging.xml
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
