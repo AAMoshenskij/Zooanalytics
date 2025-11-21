@@ -14,6 +14,12 @@ services:
       - ./postgres_data:/var/lib/postgresql/data
       - ./sql:/docker-entrypoint-initdb.d
       - ./исходные_данные:/docker-entrypoint-initdb.d/исходные_данные
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   spark:
     image: bitnami/spark:3.5.1
@@ -69,3 +75,36 @@ services:
       nofile:
         soft: 262144
         hard: 262144
+  
+  superset:
+    image: apache/superset:latest
+    container_name: superset
+    environment:
+      SUPERSET_SECRET_KEY: 'my-secret-key-123'
+      SUPERSET_ENV: development
+    ports:
+      - "8088:8088"
+    depends_on:
+      db:
+        condition: service_healthy
+      clickhouse:
+        condition: service_started
+    volumes:
+      - superset_data:/app/superset_home
+    command: >
+      bash -c "
+        pip install psycopg2-binary clickhouse-connect &&
+        superset fab create-admin --username admin --firstname Admin --lastname User --email admin@example.com --password admin &&
+        superset db upgrade &&
+        superset init &&
+        superset run -h 0.0.0.0 -p 8088 --with-threads --reload --debugger
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+volumes:
+  superset_data:

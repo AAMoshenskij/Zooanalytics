@@ -106,6 +106,50 @@ def create_reports():
     
     write_ch(product_quality, "product_quality")
 
+    # Витрина 7: Ежемесячные продажи по категориям
+    monthly_category_sales = sales_df.join(products_df, sales_df.product_id == products_df.id) \
+        .withColumn("year", year("sale_date")) \
+        .withColumn("month", month("sale_date")) \
+        .groupBy("year", "month", "category") \
+        .agg(
+            sum("total_price").alias("monthly_revenue"),
+            sum("quantity").alias("units_sold"),
+            count("*").alias("transaction_count")
+        ).orderBy("year", "month", col("monthly_revenue").desc())
+
+    write_ch(monthly_category_sales, "monthly_category_sales")
+
+    # Витрина 8: Географическое распределение продаж
+    geo_sales = sales_df.join(customers_df, sales_df.customer_id == customers_df.id) \
+        .join(stores_df, sales_df.store_id == stores_df.id) \
+        .groupBy("country") \
+        .agg(
+            sum("total_price").alias("total_revenue"),
+            count("*").alias("total_sales"),
+            countDistinct("customer_id").alias("unique_customers")
+        ).orderBy(col("total_revenue").desc())
+
+    write_ch(geo_sales, "geo_sales")
+
+    # Витрина 9: Анализ клиентов по возрастным группам
+    age_analysis = sales_df.join(customers_df, sales_df.customer_id == customers_df.id) \
+        .withColumn("age_group", 
+            when(col("age") < 25, "18-24")
+            .when(col("age") < 35, "25-34")
+            .when(col("age") < 45, "35-44")
+            .when(col("age") < 55, "45-54")
+            .otherwise("55+")
+        ) \
+        .groupBy("age_group") \
+        .agg(
+            sum("total_price").alias("total_spent"),
+            count("*").alias("purchase_count"),
+            avg("total_price").alias("avg_order_value"),
+            countDistinct("customer_id").alias("unique_customers")
+        ).orderBy("age_group")
+
+    write_ch(age_analysis, "customer_age_analysis")
+
     spark.stop()
 
 if __name__ == "__main__":
